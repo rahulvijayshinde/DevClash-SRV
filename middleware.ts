@@ -1,24 +1,19 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req: request, res })
-
-  await supabase.auth.getSession()
-
-  return res
+  // Simply allow all requests to pass through
+  return NextResponse.next()
 }
 
-// Specify which routes should be protected by the middleware
+// Keep the matcher config for reference, but it won't block access
 export const config = {
   matcher: [
-    // Protect all routes under /dashboard
-    '/dashboard/:path*',
-    // Protect specific routes
-    '/profile',
-    '/settings',
-    // Add more protected routes as needed
+    '/settings/:path*',
+    '/medications/:path*',
+    '/consultations/:path*',
+    '/profile/:path*',
+    '/login',
+    '/signup',
+    '/reset-password'
   ]
-} 
+}
