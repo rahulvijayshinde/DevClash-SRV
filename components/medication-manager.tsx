@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
 import { Bell, Check, Clock, Loader2, MoreHorizontal, PillIcon, Plus, X } from "lucide-react"
+import { supabase, getLocalUser } from "@/lib/supabase"
 
 import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -37,73 +38,30 @@ const medicationFormSchema = z.object({
   reminders: z.boolean().default(true),
 })
 
-type Medication = z.infer<typeof medicationFormSchema> & {
-  id: string
-  adherence: number
-  history: {
-    date: string
-    taken: boolean
-  }[]
+type MedicationFormValues = z.infer<typeof medicationFormSchema>;
+
+type MedicationHistory = {
+  date: string
+  taken: boolean
 }
 
-// Sample data
-const initialMedications: Medication[] = [
-  {
-    id: "med1",
-    name: "Lisinopril",
-    dosage: "10mg",
-    frequency: "daily",
-    time: "morning",
-    instructions: "Take with food",
-    reminders: true,
-    adherence: 85,
-    history: [
-      { date: format(new Date(new Date().setDate(new Date().getDate() - 3)), "yyyy-MM-dd"), taken: true },
-      { date: format(new Date(new Date().setDate(new Date().getDate() - 2)), "yyyy-MM-dd"), taken: true },
-      { date: format(new Date(new Date().setDate(new Date().getDate() - 1)), "yyyy-MM-dd"), taken: false },
-      { date: format(new Date(), "yyyy-MM-dd"), taken: true },
-    ],
-  },
-  {
-    id: "med2",
-    name: "Metformin",
-    dosage: "500mg",
-    frequency: "twice-daily",
-    time: "morning-evening",
-    instructions: "Take with meals",
-    reminders: true,
-    adherence: 92,
-    history: [
-      { date: format(new Date(new Date().setDate(new Date().getDate() - 3)), "yyyy-MM-dd"), taken: true },
-      { date: format(new Date(new Date().setDate(new Date().getDate() - 2)), "yyyy-MM-dd"), taken: true },
-      { date: format(new Date(new Date().setDate(new Date().getDate() - 1)), "yyyy-MM-dd"), taken: true },
-      { date: format(new Date(), "yyyy-MM-dd"), taken: true },
-    ],
-  },
-  {
-    id: "med3",
-    name: "Atorvastatin",
-    dosage: "20mg",
-    frequency: "daily",
-    time: "evening",
-    instructions: "Take at bedtime",
-    reminders: true,
-    adherence: 78,
-    history: [
-      { date: format(new Date(new Date().setDate(new Date().getDate() - 3)), "yyyy-MM-dd"), taken: true },
-      { date: format(new Date(new Date().setDate(new Date().getDate() - 2)), "yyyy-MM-dd"), taken: false },
-      { date: format(new Date(new Date().setDate(new Date().getDate() - 1)), "yyyy-MM-dd"), taken: true },
-      { date: format(new Date(), "yyyy-MM-dd"), taken: false },
-    ],
-  },
-]
+type Medication = MedicationFormValues & {
+  id: string
+  user_id: string
+  adherence: number
+  history: MedicationHistory[]
+  created_at?: string
+  updated_at?: string
+}
 
 export function MedicationManager() {
-  const [medications, setMedications] = useState<Medication[]>(initialMedications)
+  const [medications, setMedications] = useState<Medication[]>([])
   const [isAddingMedication, setIsAddingMedication] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
 
-  const form = useForm<z.infer<typeof medicationFormSchema>>({
+  const form = useForm<MedicationFormValues>({
     resolver: zodResolver(medicationFormSchema),
     defaultValues: {
       name: "",
@@ -115,92 +73,274 @@ export function MedicationManager() {
     },
   })
 
-  function onSubmit(values: z.infer<typeof medicationFormSchema>) {
-    setIsSubmitting(true)
-
-    // Simulate API call
-    setTimeout(() => {
-      const newMedication: Medication = {
-        id: `med${medications.length + 1}`,
-        ...values,
-        adherence: 100,
-        history: [{ date: format(new Date(), "yyyy-MM-dd"), taken: false }],
+  // Fetch user and their medications on component mount
+  useEffect(() => {
+    const fetchUserAndMedications = async () => {
+      const currentUser = getLocalUser();
+      
+      if (currentUser) {
+        setUserId(currentUser.id);
+        await fetchMedications(currentUser.id);
+      } else {
+        setIsLoading(false);
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to manage your medications.",
+          variant: "destructive",
+        });
       }
+    };
+    
+    fetchUserAndMedications();
+  }, []);
+  
+  // Fetch medications from Supabase
+  const fetchMedications = async (user_id: string) => {
+    try {
+      setIsLoading(true);
+      
+      const { data, error } = await supabase
+        .from('medications')
+        .select('*')
+        .eq('user_id', user_id)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Parse the history field for each medication
+      const parsedMedications = data.map(med => ({
+        ...med,
+        history: typeof med.history === 'string' 
+          ? JSON.parse(med.history) 
+          : med.history || []
+      }));
+      
+      setMedications(parsedMedications);
+    } catch (error) {
+      console.error("Error fetching medications:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load your medications. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      setMedications([...medications, newMedication])
-      setIsSubmitting(false)
-      setIsAddingMedication(false)
-      form.reset()
+  async function onSubmit(values: MedicationFormValues) {
+    if (!userId) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to add medications.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
 
+    try {
+      // Prepare the medication data
+      const today = format(new Date(), "yyyy-MM-dd");
+      const newMedication: Omit<Medication, 'id'> = {
+        ...values,
+        user_id: userId,
+        adherence: 100,
+        history: [{ date: today, taken: false }],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Insert into Supabase
+      const { data, error } = await supabase
+        .from('medications')
+        .insert({
+          ...newMedication,
+          history: JSON.stringify(newMedication.history) // Stringify array for storage
+        })
+        .select();
+      
+      if (error) throw error;
+      
+      // Parse the returned data
+      const insertedMedication = {
+        ...data[0],
+        history: typeof data[0].history === 'string' 
+          ? JSON.parse(data[0].history) 
+          : data[0].history || []
+      };
+      
+      // Update local state
+      setMedications(prev => [insertedMedication, ...prev]);
+      
+      setIsAddingMedication(false);
+      form.reset();
+      
       toast({
         title: "Medication Added",
         description: `${values.name} has been added to your medication list.`,
-      })
-    }, 1000)
+      });
+    } catch (error) {
+      console.error("Error adding medication:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add medication. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  function markAsTaken(id: string, taken: boolean) {
-    setMedications(
-      medications.map((med) => {
-        if (med.id === id) {
-          const today = format(new Date(), "yyyy-MM-dd")
-          const updatedHistory = [...med.history]
-          const todayIndex = updatedHistory.findIndex((h) => h.date === today)
-
-          if (todayIndex >= 0) {
-            updatedHistory[todayIndex].taken = taken
-          } else {
-            updatedHistory.push({ date: today, taken })
-          }
-
-          // Recalculate adherence
-          const takenCount = updatedHistory.filter((h) => h.taken).length
-          const adherence = Math.round((takenCount / updatedHistory.length) * 100)
-
-          return {
-            ...med,
-            history: updatedHistory,
-            adherence,
-          }
-        }
-        return med
-      }),
-    )
-
-    toast({
-      title: taken ? "Medication Taken" : "Medication Skipped",
-      description: `Medication has been marked as ${taken ? "taken" : "skipped"}.`,
-    })
+  async function markAsTaken(id: string, taken: boolean) {
+    try {
+      // Find the medication to update
+      const medicationIndex = medications.findIndex(med => med.id === id);
+      if (medicationIndex === -1) return;
+      
+      const medication = medications[medicationIndex];
+      
+      // Update the history
+      const today = format(new Date(), "yyyy-MM-dd");
+      const updatedHistory = [...medication.history];
+      const todayIndex = updatedHistory.findIndex(h => h.date === today);
+      
+      if (todayIndex >= 0) {
+        updatedHistory[todayIndex].taken = taken;
+      } else {
+        updatedHistory.push({ date: today, taken });
+      }
+      
+      // Recalculate adherence
+      const takenCount = updatedHistory.filter(h => h.taken).length;
+      const adherence = Math.round((takenCount / updatedHistory.length) * 100);
+      
+      // Update local state first for immediate UI feedback
+      const updatedMedication = {
+        ...medication,
+        history: updatedHistory,
+        adherence,
+        updated_at: new Date().toISOString()
+      };
+      
+      const updatedMedications = [...medications];
+      updatedMedications[medicationIndex] = updatedMedication;
+      setMedications(updatedMedications);
+      
+      // Update in Supabase
+      const { error } = await supabase
+        .from('medications')
+        .update({
+          history: JSON.stringify(updatedHistory),
+          adherence,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      toast({
+        title: taken ? "Medication Taken" : "Medication Skipped",
+        description: `${medication.name} has been marked as ${taken ? "taken" : "skipped"}.`,
+      });
+    } catch (error) {
+      console.error("Error updating medication status:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update medication status. Please try again.",
+        variant: "destructive",
+      });
+      
+      // Revert to original data on error by re-fetching
+      if (userId) {
+        fetchMedications(userId);
+      }
+    }
   }
 
-  function deleteMedication(id: string) {
-    setMedications(medications.filter((med) => med.id !== id))
-
-    toast({
-      title: "Medication Deleted",
-      description: "The medication has been removed from your list.",
-    })
+  async function deleteMedication(id: string) {
+    try {
+      // Update local state first for immediate UI feedback
+      setMedications(medications.filter(med => med.id !== id));
+      
+      // Delete from Supabase
+      const { error } = await supabase
+        .from('medications')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Medication Deleted",
+        description: "The medication has been removed from your list.",
+      });
+    } catch (error) {
+      console.error("Error deleting medication:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete medication. Please try again.",
+        variant: "destructive",
+      });
+      
+      // Revert to original data on error by re-fetching
+      if (userId) {
+        fetchMedications(userId);
+      }
+    }
   }
 
-  function toggleReminder(id: string) {
-    setMedications(
-      medications.map((med) => {
-        if (med.id === id) {
-          return {
-            ...med,
-            reminders: !med.reminders,
-          }
-        }
-        return med
-      }),
-    )
-
-    const medication = medications.find((med) => med.id === id)
-
-    toast({
-      title: medication?.reminders ? "Reminders Disabled" : "Reminders Enabled",
-      description: `Reminders for ${medication?.name} have been ${medication?.reminders ? "disabled" : "enabled"}.`,
-    })
+  async function toggleReminder(id: string) {
+    try {
+      // Find the medication to update
+      const medicationIndex = medications.findIndex(med => med.id === id);
+      if (medicationIndex === -1) return;
+      
+      const medication = medications[medicationIndex];
+      const newReminderValue = !medication.reminders;
+      
+      // Update local state first for immediate UI feedback
+      const updatedMedication = {
+        ...medication,
+        reminders: newReminderValue,
+        updated_at: new Date().toISOString()
+      };
+      
+      const updatedMedications = [...medications];
+      updatedMedications[medicationIndex] = updatedMedication;
+      setMedications(updatedMedications);
+      
+      // Update in Supabase
+      const { error } = await supabase
+        .from('medications')
+        .update({
+          reminders: newReminderValue,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      toast({
+        title: newReminderValue ? "Reminders Enabled" : "Reminders Disabled",
+        description: `Reminders for ${medication.name} have been ${newReminderValue ? "enabled" : "disabled"}.`,
+      });
+    } catch (error) {
+      console.error("Error toggling reminder:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update reminder setting. Please try again.",
+        variant: "destructive",
+      });
+      
+      // Revert to original data on error by re-fetching
+      if (userId) {
+        fetchMedications(userId);
+      }
+    }
   }
 
   return (
@@ -215,7 +355,7 @@ export function MedicationManager() {
           <h2 className="text-xl font-semibold">Your Medications</h2>
           <Dialog open={isAddingMedication} onOpenChange={setIsAddingMedication}>
             <DialogTrigger asChild>
-              <Button size="sm">
+              <Button size="sm" disabled={!userId}>
                 <Plus className="mr-1 h-4 w-4" /> Add Medication
               </Button>
             </DialogTrigger>
@@ -361,7 +501,14 @@ export function MedicationManager() {
         </div>
 
         <div className="space-y-4">
-          {medications.length === 0 ? (
+          {isLoading ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-6">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="mt-2 text-sm text-muted-foreground">Loading your medications...</p>
+              </CardContent>
+            </Card>
+          ) : medications.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center p-6">
                 <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -371,7 +518,7 @@ export function MedicationManager() {
                 <p className="mb-4 text-center text-sm text-muted-foreground">
                   You haven't added any medications yet. Click the button below to add your first medication.
                 </p>
-                <Button onClick={() => setIsAddingMedication(true)}>
+                <Button onClick={() => setIsAddingMedication(true)} disabled={!userId}>
                   <Plus className="mr-1 h-4 w-4" /> Add Medication
                 </Button>
               </CardContent>
@@ -517,47 +664,12 @@ export function MedicationManager() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {medications.map((medication) => (
-                <div key={medication.id} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium">{medication.name}</div>
-                    <div className="text-sm text-muted-foreground">{medication.adherence}% adherence</div>
-                  </div>
-                  <Progress
-                    value={medication.adherence}
-                    className="h-2"
-                    indicatorClassName={
-                      medication.adherence >= 90
-                        ? "bg-green-500"
-                        : medication.adherence >= 70
-                          ? "bg-amber-500"
-                          : "bg-red-500"
-                    }
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <div>Last 7 days:</div>
-                    <div className="flex gap-1">
-                      {Array.from({ length: 7 }).map((_, i) => {
-                        const date = format(new Date(new Date().setDate(new Date().getDate() - (6 - i))), "yyyy-MM-dd")
-                        const dayRecord = medication.history.find((h) => h.date === date)
-                        return (
-                          <div
-                            key={i}
-                            className={`h-4 w-4 rounded-sm ${
-                              !dayRecord ? "bg-gray-100" : dayRecord.taken ? "bg-green-100" : "bg-red-100"
-                            }`}
-                            title={`${format(new Date(date), "MMM d")}: ${
-                              !dayRecord ? "No record" : dayRecord.taken ? "Taken" : "Missed"
-                            }`}
-                          />
-                        )
-                      })}
-                    </div>
-                  </div>
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="mt-2 text-sm text-muted-foreground">Loading your adherence data...</p>
                 </div>
-              ))}
-
-              {medications.length === 0 && (
+              ) : medications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8">
                   <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                     <PillIcon className="h-6 w-6 text-muted-foreground" />
@@ -566,10 +678,50 @@ export function MedicationManager() {
                   <p className="mb-4 text-center text-sm text-muted-foreground">
                     Add medications to track your adherence.
                   </p>
-                  <Button onClick={() => setIsAddingMedication(true)}>
+                  <Button onClick={() => setIsAddingMedication(true)} disabled={!userId}>
                     <Plus className="mr-1 h-4 w-4" /> Add Medication
                   </Button>
                 </div>
+              ) : (
+                medications.map((medication) => (
+                  <div key={medication.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">{medication.name}</div>
+                      <div className="text-sm text-muted-foreground">{medication.adherence}% adherence</div>
+                    </div>
+                    <Progress
+                      value={medication.adherence}
+                      className="h-2"
+                      indicatorClassName={
+                        medication.adherence >= 90
+                          ? "bg-green-500"
+                          : medication.adherence >= 70
+                            ? "bg-amber-500"
+                            : "bg-red-500"
+                      }
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <div>Last 7 days:</div>
+                      <div className="flex gap-1">
+                        {Array.from({ length: 7 }).map((_, i) => {
+                          const date = format(new Date(new Date().setDate(new Date().getDate() - (6 - i))), "yyyy-MM-dd")
+                          const dayRecord = medication.history.find((h) => h.date === date)
+                          return (
+                            <div
+                              key={i}
+                              className={`h-4 w-4 rounded-sm ${
+                                !dayRecord ? "bg-gray-100" : dayRecord.taken ? "bg-green-100" : "bg-red-100"
+                              }`}
+                              title={`${format(new Date(date), "MMM d")}: ${
+                                !dayRecord ? "No record" : dayRecord.taken ? "Taken" : "Missed"
+                              }`}
+                            />
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           </CardContent>

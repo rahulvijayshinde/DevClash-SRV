@@ -136,13 +136,12 @@ export function ConsultationBooking() {
           </Card>
 
           <div className="flex w-full flex-col gap-2 sm:flex-row">
-            <Button className="flex-1 gap-2" variant="outline">
-              <Calendar className="h-4 w-4" />
+            <Button className="flex-1" variant="outline">
               Add to Calendar
             </Button>
             <Button className="flex-1 gap-2">
               <Video className="h-4 w-4" />
-              Join Video Call
+              Request Video Call
             </Button>
           </div>
 

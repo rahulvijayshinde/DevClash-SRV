@@ -5,7 +5,7 @@ const testimonials = [
   {
     name: "Sarah Johnson",
     location: "Rural Montana",
-    image: "/placeholder.svg?height=80&width=80",
+    image: "images/client1.png",
     content:
       "MediConnect has been a lifesaver for our family. Living 50 miles from the nearest hospital, we can now get medical advice without the long drive.",
     initials: "SJ",
@@ -13,7 +13,7 @@ const testimonials = [
   {
     name: "Miguel Rodriguez",
     location: "Remote Village, New Mexico",
-    image: "/placeholder.svg?height=80&width=80",
+    image: "images/client11.jpg",
     content:
       "The AI symptom checker helped identify my condition early. I was able to get treatment before it became serious. This platform is changing lives.",
     initials: "MR",
@@ -21,7 +21,7 @@ const testimonials = [
   {
     name: "Aisha Patel",
     location: "Community Health Worker",
-    image: "/placeholder.svg?height=80&width=80",
+    image: "images/2.jpg",
     content:
       "As a community health worker, I use MediConnect to connect my patients with specialists. The platform is intuitive and accessible even for those with limited tech experience.",
     initials: "AP",
