@@ -6,6 +6,9 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Toaster } from "@/components/ui/toaster"
+import { AuthProvider } from "@/lib/AuthContext"
+import { SidebarFloatingTrigger } from "@/components/sidebar-floating-trigger"
+import { MainContent } from "@/components/main-content"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -13,7 +16,7 @@ export const metadata: Metadata = {
   title: "MediConnect - AI-Powered Telemedicine",
   description: "Connecting underserved communities with healthcare providers",
   manifest: "/manifest.json",
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -22,16 +25,19 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <SidebarProvider>
-            <div className="flex min-h-screen">
-              <AppSidebar />
-              <main className="flex-1 overflow-y-auto">{children}</main>
-            </div>
-            <Toaster />
-          </SidebarProvider>
+          <AuthProvider>
+            <SidebarProvider defaultOpen={true}>
+              <div className="flex min-h-screen">
+                <AppSidebar />
+                <MainContent>{children}</MainContent>
+                <SidebarFloatingTrigger />
+              </div>
+              <Toaster />
+            </SidebarProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

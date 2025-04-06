@@ -1,7 +1,12 @@
+"use client"
+
 import { User } from "lucide-react"
 import { UserProfile } from "@/components/user-profile"
+import { useAuth } from "@/lib/AuthContext"
 
 export default function ProfilePage() {
+  const { user } = useAuth()
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">

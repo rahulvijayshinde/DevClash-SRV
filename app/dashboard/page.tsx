@@ -1,17 +1,56 @@
+"use client"
+
 import { LineChart } from "lucide-react"
 import { HealthDashboard } from "@/components/health-dashboard"
+import { useEffect, useState } from "react"
+import { DebugCharts } from "./debug-charts"
 
 export default function DashboardPage() {
+  const [isMounted, setIsMounted] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+
+  // This ensures the component only renders on the client side
+  // which helps with Recharts that requires browser APIs
+  useEffect(() => {
+    setIsMounted(true);
+    
+    // Check URL parameters for debug mode
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('debug') === 'true') {
+      setShowDebug(true);
+    }
+    
+    // Add console message to help debug
+    console.log("Dashboard page mounted, charts should render now");
+  }, []);
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="mb-2 text-3xl font-bold">Health Dashboard</h1>
         <p className="text-muted-foreground">Monitor your health metrics and trends over time</p>
+        
+        {isMounted && (
+          <button 
+            onClick={() => setShowDebug(prev => !prev)}
+            className="mt-2 text-xs text-blue-600 hover:underline"
+          >
+            {showDebug ? "Hide Debug Charts" : "Show Debug Charts"}
+          </button>
+        )}
       </div>
+
+      {showDebug && <DebugCharts />}
 
       <div className="grid gap-8 md:grid-cols-3">
         <div className="md:col-span-2">
-          <HealthDashboard />
+          {isMounted ? (
+            <HealthDashboard />
+          ) : (
+            <div className="flex h-[400px] items-center justify-center rounded-lg border bg-card p-6 shadow-sm">
+              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-primary"></div>
+            </div>
+          )}
         </div>
 
         <div>

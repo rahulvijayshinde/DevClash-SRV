@@ -1,12 +1,43 @@
-import { Calendar } from "lucide-react"
+"use client"
+
+import { useEffect } from "react"
+import { Calendar, ClipboardList } from "lucide-react"
 import { ConsultationBooking } from "@/components/consultation-booking"
+import { useAuth } from "@/lib/AuthContext"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 export default function ConsultationsPage() {
+  const { user, isLoading } = useAuth()
+  
+  useEffect(() => {
+    // Debug output to help identify user ID format issues
+    if (user) {
+      console.log("Current user data:", {
+        id: user.id,
+        email: user.email,
+        idType: typeof user.id
+      });
+    } else {
+      console.log("No user logged in or user data still loading:", { isLoading });
+    }
+  }, [user, isLoading]);
+
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold">Teleconsultation Booking</h1>
-        <p className="text-muted-foreground">Schedule a virtual appointment with a healthcare provider</p>
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="mb-2 text-3xl font-bold">Teleconsultation Booking</h1>
+          <p className="text-muted-foreground">Schedule a virtual appointment with a healthcare provider</p>
+        </div>
+        {user && (
+          <Button asChild className="mt-4 gap-2 sm:mt-0">
+            <Link href="/consultations/my-appointments">
+              <ClipboardList className="h-4 w-4" />
+              View My Appointments
+            </Link>
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-8 md:grid-cols-3">

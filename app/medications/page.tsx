@@ -1,7 +1,12 @@
+"use client"
+
 import { PillIcon } from "lucide-react"
 import { MedicationManager } from "@/components/medication-manager"
+import { useAuth } from "@/lib/AuthContext"
 
 export default function MedicationsPage() {
+  const { user } = useAuth()
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
