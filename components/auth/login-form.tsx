@@ -25,7 +25,8 @@ export default function LoginForm() {
   // Use useEffect for redirect instead of during render
   useEffect(() => {
     if (user) {
-      router.push("/")
+      console.log("User detected in AuthContext, redirecting to dashboard...")
+      router.push("/page")
     }
   }, [user, router])
 
@@ -45,26 +46,33 @@ export default function LoginForm() {
       return
     }
 
-    const { user, error } = await signInWithEmail(email, password)
+    try {
+      const { user, error } = await signInWithEmail(email, password)
 
-    if (error) {
-      setError(error)
-      setLoading(false)
-      return
-    }
+      if (error) {
+        setError(error)
+        setLoading(false)
+        return
+      }
 
-    if (user) {
-      console.log("Login successful, redirecting...")
-      router.refresh() // Force refresh the router
-      router.push("/")
-    } else {
-      setError("Login failed. Please check your credentials and try again.")
+      if (user) {
+        console.log("Login successful, redirecting to dashboard...")
+        
+        // Force a client-side navigation to the dashboard instead of home
+        window.location.href = "/dashboard"
+      } else {
+        setError("Login failed. Please check your credentials and try again.")
+        setLoading(false)
+      }
+    } catch (err) {
+      console.error("Login error:", err)
+      setError("An unexpected error occurred. Please try again.")
       setLoading(false)
     }
   }
 
   return (
-    <Card className="w-full shadow-md mx-auto">
+    <Card className="w-full mx-auto">
       <CardContent className="pt-6">
         {error && (
           <Alert variant="destructive" className="mb-4">

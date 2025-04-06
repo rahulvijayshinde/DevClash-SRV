@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -19,6 +19,19 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { getUserAppointments } from "@/lib/supabase"
+import { useAuth } from "@/lib/AuthContext"
+
+// Define a more flexible type for jsPDF to prevent TypeScript errors
+type FlexibleJsPDF = {
+  text: (text: string, x: number, y: number) => FlexibleJsPDF;
+  setFontSize: (size: number) => FlexibleJsPDF;
+  addPage: () => FlexibleJsPDF;
+  splitTextToSize: (text: string, maxWidth: number) => string[];
+  save: (filename: string) => FlexibleJsPDF;
+  output: (type: string, options?: any) => any;
+  [key: string]: any; // Allow any other property or method
+};
 
 // Simplified list of common symptoms
 const COMMON_SYMPTOMS = {
@@ -76,12 +89,27 @@ const formSchema = z.object({
   // We'll validate symptoms selection separately since it's not a direct form field
 });
 
+// Define the appointment type
+type Appointment = {
+  id: string;
+  specialist_type: string;
+  specialist_name: string;
+  appointment_date: string;
+  appointment_time: string;
+  reason: string;
+  notes?: string;
+  status: string;
+  created_at: string;
+};
+
 export function SymptomCheckerForm() {
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [generatingPdf, setGeneratingPdf] = useState<boolean>(false)
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const { user } = useAuth()
 
   // Initialize the form with react-hook-form and zod validation
   const form = useForm<z.infer<typeof formSchema>>({
@@ -173,30 +201,14 @@ export function SymptomCheckerForm() {
   const downloadReport = async () => {
     setGeneratingPdf(true);
     try {
-      // Try multiple ways to import jsPDF for better browser compatibility
-      let jsPDF;
-      try {
-        // First try the default import
-        const jsPDFModule = await import('jspdf');
-        jsPDF = jsPDFModule.default;
-      } catch (importError) {
-        console.error('First import method failed:', importError);
-        
-        // Try alternative import method as a string to avoid TypeScript errors
-        // @ts-ignore
-        const jsPDFModule = await import('jspdf');
-        jsPDF = jsPDFModule.default || jsPDFModule;
-      }
+      // Import jsPDF
+      const { default: jsPDF } = await import('jspdf');
       
-      if (!jsPDF) {
-        throw new Error('Failed to load PDF generation library');
-      }
+      // Create PDF instance with type assertion to avoid TypeScript errors
+      const doc = new jsPDF() as any;
       
       // Get current form values
       const values = form.getValues();
-      
-      // Create new PDF document
-      const doc = new jsPDF();
       
       // Set initial positions
       let y = 20;
@@ -269,7 +281,7 @@ export function SymptomCheckerForm() {
         try {
           const infoLines = doc.splitTextToSize(values.additionalInfo, 170);
           doc.text(infoLines, margin, y);
-          y += infoLines.length * 7 + 10;
+          y += (infoLines.length * 7) + 10;
         } catch (textError) {
           console.error('Error adding additional notes:', textError);
           doc.text("Additional notes available in the app", margin, y);
@@ -285,7 +297,7 @@ export function SymptomCheckerForm() {
         }
         
         doc.setFontSize(12);
-        doc.text("AI ANALYSIS", margin, y);
+        doc.text("ANALYSIS", margin, y);
         y += 7;
         doc.setFontSize(10);
         
@@ -305,26 +317,25 @@ export function SymptomCheckerForm() {
       doc.text("DISCLAIMER: This is a preliminary assessment only and not a medical diagnosis.", margin, 280);
       doc.text("Please consult with a healthcare professional for proper diagnosis and treatment.", margin, 285);
       
-      // Try multiple methods to save the PDF in case one fails
+      // Save the PDF
       try {
         doc.save("symptom-checker-report.pdf");
-      } catch (saveError) {
-        console.error('Error with first save method:', saveError);
+      } catch (err) {
+        console.error("Error saving PDF:", err);
         
-        // Try alternative method to save PDF (using Blob)
+        // Create a download link as fallback
         try {
-          const pdfBlob = doc.output('blob');
-          const url = URL.createObjectURL(pdfBlob);
+          // Get base64 encoded PDF
+          const pdfData = doc.output('datauristring');
+          
+          // Create a link to download it
           const link = document.createElement('a');
-          link.href = url;
+          link.href = pdfData;
           link.download = "symptom-checker-report.pdf";
-          document.body.appendChild(link);
           link.click();
-          URL.revokeObjectURL(url);
-          document.body.removeChild(link);
-        } catch (blobError) {
-          console.error('Error with blob save method:', blobError);
-          throw new Error('Could not save PDF file');
+        } catch (fallbackErr) {
+          console.error("Fallback download failed:", fallbackErr);
+          throw new Error("Could not generate PDF download");
         }
       }
       
@@ -335,6 +346,41 @@ export function SymptomCheckerForm() {
       setGeneratingPdf(false);
     }
   };
+
+  const requestVideoCall = () => {
+    // Generate a random meet ID
+    const meetId = Math.random().toString(36).substring(2, 12);
+    
+    // Open the Google Meet link directly
+    window.open(`https://meet.google.com/${meetId}`, '_blank');
+  };
+
+  useEffect(() => {
+    async function fetchAppointments() {
+      if (!user || !user.id) {
+        setError("You must be logged in to view appointments");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { appointments: data, error } = await getUserAppointments(user.id);
+        
+        if (error) {
+          throw new Error(error);
+        }
+
+        setAppointments(data || []);
+      } catch (err) {
+        console.error("Error fetching appointments:", err);
+        setError(err instanceof Error ? err.message : "Failed to load appointments");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchAppointments();
+  }, [user]);
 
   // If we have results, show them instead of the form
   if (result) {
@@ -383,6 +429,30 @@ export function SymptomCheckerForm() {
             )}
           </Button>
         </CardFooter>
+        
+        {/* Video Call Button Section */}
+        <div className="px-6 pb-6">
+          <Separator className="my-4" />
+          <div className="flex flex-col items-center space-y-3">
+            <h3 className="text-lg font-medium">Need to speak with a doctor?</h3>
+            <p className="text-sm text-muted-foreground text-center">
+              Start a video consultation to discuss your symptoms with a healthcare professional.
+            </p>
+            <Button 
+              onClick={requestVideoCall} 
+              className="gap-2 bg-blue-600 hover:bg-blue-700"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M22 12c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2s10 4.48 10 10z" />
+                <path d="m15 8-5 3 5 3V8Z" />
+              </svg>
+              Request Video Call
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2">
+              A new Google Meet link will open in a new tab.
+            </p>
+          </div>
+        </div>
       </Card>
     )
   }
@@ -418,7 +488,7 @@ export function SymptomCheckerForm() {
                         <Input
                           type="number"
                           min="1"
-                          max="120"
+                          max="100"
                           placeholder="Your age (required)"
                           {...field}
                         />
