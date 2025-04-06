@@ -14,21 +14,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const resourcesData = [
   {
     id: "res1",
-    name: "Community Health Center",
+    name: "Vedant healthcare Center",
     type: "clinic",
-    address: "123 Main St, Anytown, USA",
-    phone: "(555) 123-4567",
+    address: "GWXC+9HP, Prasad Nagar, Wadgaon Sheri, Pune, Maharashtra 411014",
+    phone: "+91  123456789",
     hours: "Mon-Fri: 8am-5pm, Sat: 9am-1pm",
-    distance: 1.2,
+    distance: 19.2,
     services: ["Primary Care", "Pediatrics", "Women's Health", "Mental Health"],
     acceptingNew: true,
   },
   {
     id: "res2",
-    name: "County General Hospital",
+    name: "New Thergaon Hospital",
     type: "hospital",
-    address: "456 Hospital Ave, Anytown, USA",
-    phone: "(555) 987-6543",
+    address: "Jagtap Nagar, Nakhate Nagar, Thergaon, Pune, Pimpri-Chinchwad, Maharashtra 411033",
+    phone: "02068337373",
     hours: "24/7",
     distance: 3.5,
     services: ["Emergency Care", "Surgery", "Radiology", "Laboratory"],
@@ -268,10 +268,12 @@ export function LocalResources() {
                       <Phone className="h-4 w-4" />
                       Call
                     </Button>
+                    <a href="https://www.google.com/maps/dir//GWXC%2B9HP+Vedant+healthcare+Center,+Prasad+Nagar,+Wadgaon+Sheri,+Pune,+Maharashtra+411014/@18.548468,73.9165728,17z/data=!4m17!1m7!3m6!1s0x3bc2c111b9c5e05d:0x71bb93047eaa31cf!2sVedant+healthcare+Center!8m2!3d18.548463!4d73.9214437!16s%2Fg%2F11shxwqwps!4m8!1m0!1m5!1m1!1s0x3bc2c111b9c5e05d:0x71bb93047eaa31cf!2m2!1d73.9214473!2d18.5484059!3e9?entry=ttu&g_ep=EgoyMDI1MDQwMi4xIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener noreferrer">
                     <Button variant="outline" size="sm" className="gap-1">
                       <MapPin className="h-4 w-4" />
                       Directions
                     </Button>
+                  </a>
                     <Button size="sm" className="gap-1">
                       <ExternalLink className="h-4 w-4" />
                       Visit Website

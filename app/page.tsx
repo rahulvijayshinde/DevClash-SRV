@@ -150,7 +150,7 @@ export default function Home() {
           
           {/* Content */}
           <div className="relative z-10 max-w-3xl">
-            <h1 className="mb-4 text-4xl font-bold md:text-5xl">AI-Powered Telemedicine for Underserved Communities</h1>
+            <h1 className="mb-4 text-4xl font-bold md:text-5xl">AI-Powered Healthcare For Community</h1>
             <p className="mb-8 text-lg text-white/90">
               Connecting patients in remote or underserved regions with healthcare providers using AI technology. Get
               quality healthcare from anywhere, anytime.
