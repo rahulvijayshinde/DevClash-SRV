@@ -88,6 +88,6 @@ Track prescribed medications, dosages, and schedules.
 
 This application does not provide medical diagnosis. All assessments are preliminary and users should consult healthcare professionals for proper medical advice.
 
-## License
+## Video Demo Link
 
-[MIT](LICENSE)
+https://drive.google.com/file/d/1uGeIRI63PqQ4Xe4gIcyfNJMeBnMo5kNV/view?usp=sharing
